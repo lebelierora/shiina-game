@@ -1,0 +1,811 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+    <meta name="color-scheme" content="light dark" />
+    <link rel="icon" href="data:," />
+    <title>麺宿志いな 茹で上がる前に遊ぶゲーム</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@500;700;900&family=Shippori+Mincho:wght@700;800&display=swap" rel="stylesheet" />
+    <style>
+      button, [role="button"] { min-height: 2.75rem; touch-action: manipulation; }
+      * { box-sizing: border-box; }
+      :root {
+        --bg: #faf6ee;
+        --bg-2: #f3ecdd;
+        --surface: #fffdf8;
+        --ink: #2b2118;
+        --ink-soft: #6f6151;
+        --line: #e2d7c3;
+        --accent: #b3372a;       /* 朱 */
+        --accent-deep: #8f2a20;
+        --gold: #c98f2d;
+        --broth: #f2c14e;
+        --good: #2e7d4f;
+        --bad: #b3372a;
+        --ticket: #fff8e6;
+        --shadow: 0 10px 28px rgba(80, 58, 28, .14);
+        --radius: 14px;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #171310;
+          --bg-2: #1f1a15;
+          --surface: #262019;
+          --ink: #f3ead9;
+          --ink-soft: #b8a88f;
+          --line: #42382b;
+          --accent: #e05a49;
+          --accent-deep: #c44434;
+          --gold: #dfa83e;
+          --broth: #f2c14e;
+          --good: #57b57e;
+          --bad: #e05a49;
+          --ticket: #2c2417;
+          --shadow: 0 10px 28px rgba(0,0,0,.45);
+        }
+      }
+      html, body { margin: 0; padding: 0; overscroll-behavior: none; }
+      /* プレイ中は画面を固定（上下に微妙に動かないように） */
+      body.locked { position: fixed; inset: 0; width: 100%; overflow: hidden; }
+      body.locked .wrap { padding-bottom: 12px; }
+      #screen-play { touch-action: none; }
+      body {
+        font-family: "Zen Kaku Gothic New", "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+        background: var(--bg);
+        color: var(--ink);
+        -webkit-tap-highlight-color: transparent;
+        touch-action: manipulation;
+      }
+      .wrap { max-width: 560px; margin: 0 auto; padding: 18px 16px 40px; }
+
+      /* ---------- 共通 ---------- */
+      .screen { display: none; }
+      .screen.active { display: block; animation: fadein .25s ease; }
+      @keyframes fadein { from { opacity: 0; transform: translateY(4px);} to { opacity: 1; transform: none; } }
+      @media (prefers-reduced-motion: reduce) {
+        .screen.active { animation: none; }
+        .steam span { animation: none !important; opacity: .35; }
+      }
+      .btn {
+        display: inline-flex; align-items: center; justify-content: center; gap: .5em;
+        font-family: inherit; font-weight: 900; cursor: pointer; border: none;
+        border-radius: 999px; padding: 14px 28px; font-size: 1.05rem; letter-spacing: .04em;
+        transition: transform .08s ease, background .15s ease;
+      }
+      .btn:active { transform: scale(.97); }
+      .btn-main { background: var(--accent); color: #fff; box-shadow: 0 6px 16px rgba(179,55,42,.35); width: 100%; }
+      .btn-main:hover { background: var(--accent-deep); }
+      .btn-ghost { background: transparent; color: var(--ink); border: 2px solid var(--line); width: 100%; }
+      .btn-ghost:hover { border-color: var(--ink-soft); }
+
+      /* ---------- 丼（SVG）まわり ---------- */
+      .bowl-stage { position: relative; text-align: center; }
+      .steam { position: absolute; left: 50%; top: -6px; transform: translateX(-50%); width: 120px; height: 56px; pointer-events: none; }
+      .steam span {
+        position: absolute; bottom: 0; width: 10px; height: 34px; border-radius: 999px;
+        background: linear-gradient(to top, transparent, var(--ink-soft));
+        opacity: 0; filter: blur(3px);
+        animation: rise 2.6s ease-in-out infinite;
+      }
+      .steam span:nth-child(1) { left: 18px; animation-delay: 0s; }
+      .steam span:nth-child(2) { left: 55px; animation-delay: .8s; height: 44px; }
+      .steam span:nth-child(3) { left: 92px; animation-delay: 1.6s; }
+      @keyframes rise {
+        0% { transform: translateY(10px) scaleY(.6); opacity: 0; }
+        35% { opacity: .5; }
+        100% { transform: translateY(-16px) scaleY(1.15); opacity: 0; }
+      }
+      .bowl-svg { width: min(240px, 62vw); height: auto; }
+      .bowl-toppings { position: absolute; left: 50%; transform: translateX(-50%); top: 12%; width: 62%; height: 26%; pointer-events: none; }
+      .bowl-toppings .mini {
+        position: absolute; width: 30px; height: 30px; border-radius: 50%;
+        background: var(--surface); border: 1.5px solid var(--line);
+        display: flex; align-items: center; justify-content: center;
+        box-shadow: 0 2px 5px rgba(0,0,0,.12);
+        animation: drop .3s ease;
+      }
+      .bowl-toppings .mini svg { width: 22px; height: 22px; }
+      @keyframes drop { from { transform: translateY(-14px); opacity: 0; } to { transform: none; opacity: 1; } }
+
+      /* ---------- スタート画面 ---------- */
+      .shop-line { text-align: center; color: var(--ink-soft); font-weight: 700; font-size: .85rem; letter-spacing: .28em; margin: 6px 0 2px; }
+      h1.game-title {
+        font-family: "Shippori Mincho", serif; font-weight: 800; text-align: center;
+        font-size: clamp(1.7rem, 7.4vw, 2.5rem); line-height: 1.3; margin: 4px 0 6px;
+      }
+      h1.game-title .accent { color: var(--accent); }
+      .lead { text-align: center; color: var(--ink-soft); font-size: .95rem; line-height: 1.8; margin: 10px auto 20px; max-width: 26em; }
+      .howto {
+        background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+        padding: 16px 18px; box-shadow: var(--shadow); margin-bottom: 20px;
+      }
+      .howto h2 { font-size: .95rem; margin: 0 0 10px; letter-spacing: .06em; }
+      .howto ol { margin: 0; padding-left: 1.3em; line-height: 2; font-size: .92rem; }
+      .howto .pts { color: var(--accent); font-weight: 900; }
+      .start-note { text-align: center; color: var(--ink-soft); font-size: .8rem; margin-top: 12px; }
+
+      /* ---------- プレイ画面 ---------- */
+      .hud { display: flex; align-items: stretch; gap: 10px; margin-bottom: 12px; }
+      .hud-box {
+        flex: 1; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+        padding: 8px 12px; text-align: center;
+      }
+      .hud-box .label { font-size: .68rem; color: var(--ink-soft); font-weight: 700; letter-spacing: .12em; }
+      .hud-box .value { font-size: 1.35rem; font-weight: 900; font-variant-numeric: tabular-nums; line-height: 1.25; }
+      .hud-box .value.combo-hot { color: var(--accent); }
+      .timer-wrap { margin-bottom: 6px; }
+      .timer-bar-bg { height: 16px; border-radius: 999px; background: var(--bg-2); border: 1px solid var(--line); overflow: hidden; }
+      .timer-bar { height: 100%; width: 100%; background: var(--gold); border-radius: 999px; transition: width .12s linear; }
+      .timer-bar.hot { background: var(--accent); }
+      .timer-meta { display: flex; justify-content: space-between; font-size: .8rem; font-weight: 700; margin-top: 5px; }
+      .timer-meta .phase { color: var(--accent); }
+      .timer-meta .sec { font-variant-numeric: tabular-nums; color: var(--ink-soft); }
+
+      .ticket {
+        background: var(--ticket); border: 1.5px dashed var(--gold); border-radius: var(--radius);
+        padding: 12px 14px; margin: 12px 0 14px; position: relative;
+      }
+      .ticket-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
+      .ticket-head .t { font-weight: 900; letter-spacing: .08em; font-size: .95rem; }
+      .ticket-head .round { font-size: .78rem; color: var(--ink-soft); font-weight: 700; }
+      .ticket-items { display: flex; flex-wrap: wrap; gap: 8px; }
+      .ticket-item {
+        display: inline-flex; align-items: center; gap: 6px; background: var(--surface);
+        border: 1px solid var(--line); border-radius: 999px; padding: 5px 12px 5px 6px;
+        font-weight: 700; font-size: .88rem;
+      }
+      .ticket-item svg { width: 22px; height: 22px; }
+      .ticket-item .need { background: var(--accent); color: #fff; border-radius: 999px; min-width: 22px; height: 22px; display: inline-flex; align-items: center; justify-content: center; font-size: .8rem; font-weight: 900; padding: 0 5px; }
+      .ticket-item.done { opacity: .38; }
+      .ticket-item.done .need { background: var(--good); }
+      .ticket-empty { color: var(--good); font-weight: 900; }
+
+      .play-bowl { margin: 2px 0 6px; }
+      .play-bowl .bowl-svg { width: min(150px, 40vw); }
+      .play-bowl .bowl-toppings { top: 10%; }
+      .play-bowl .bowl-toppings .mini { width: 24px; height: 24px; }
+      .play-bowl .bowl-toppings .mini svg { width: 17px; height: 17px; }
+
+      .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+      @media (max-width: 420px) { .grid { grid-template-columns: repeat(4, 1fr); gap: 8px; } }
+      .tile {
+        font-family: inherit; cursor: pointer; border: 2px solid var(--line); background: var(--surface);
+        border-radius: var(--radius); padding: 10px 4px 8px; display: flex; flex-direction: column;
+        align-items: center; gap: 4px; min-height: 78px; color: var(--ink);
+        transition: transform .07s ease, border-color .12s ease, background .12s ease;
+        box-shadow: 0 3px 8px rgba(80,58,28,.07);
+      }
+      .tile svg { width: 38px; height: 38px; }
+      .tile .name { font-size: .78rem; font-weight: 700; line-height: 1.2; text-align: center; }
+      .tile:active { transform: scale(.94); }
+      .tile.good-tap { border-color: var(--good); background: color-mix(in srgb, var(--good) 12%, var(--surface)); }
+      .tile.bad-tap { border-color: var(--bad); background: color-mix(in srgb, var(--bad) 12%, var(--surface)); animation: shake .3s ease; }
+      @keyframes shake { 0%,100% { transform: none; } 25% { transform: translateX(-5px); } 75% { transform: translateX(5px); } }
+      .feedback { height: 1.6em; text-align: center; font-weight: 900; font-size: 1rem; margin: 8px 0 2px; }
+      .feedback.good { color: var(--good); }
+      .feedback.bad { color: var(--bad); }
+      .feedback.combo { color: var(--accent); }
+      .sound-row { display: flex; justify-content: flex-end; margin-top: 6px; }
+      .sound-btn {
+        font-family: inherit; background: none; border: none; color: var(--ink-soft); cursor: pointer;
+        font-size: .82rem; font-weight: 700; padding: 8px 10px; min-height: 2.25rem;
+      }
+
+      /* ---------- 結果画面 ---------- */
+      .finish-title {
+        font-family: "Shippori Mincho", serif; font-weight: 800; text-align: center;
+        font-size: clamp(1.8rem, 8vw, 2.6rem); margin: 8px 0 2px; color: var(--accent);
+      }
+      .finish-sub { text-align: center; color: var(--ink-soft); margin: 0 0 8px; font-size: .92rem; }
+      .score-big { text-align: center; margin: 14px 0 2px; }
+      .score-big .num { font-size: 3rem; font-weight: 900; font-variant-numeric: tabular-nums; line-height: 1; }
+      .score-big .unit { font-size: 1rem; font-weight: 700; color: var(--ink-soft); }
+      .rank-badge {
+        display: block; width: fit-content; margin: 10px auto 18px; background: var(--accent); color: #fff;
+        font-weight: 900; letter-spacing: .1em; padding: 8px 22px; border-radius: 999px; font-size: 1.05rem;
+        box-shadow: 0 6px 14px rgba(179,55,42,.3);
+      }
+      .stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 22px; }
+      .stat { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px; text-align: center; }
+      .stat .label { font-size: .72rem; color: var(--ink-soft); font-weight: 700; letter-spacing: .1em; }
+      .stat .value { font-size: 1.5rem; font-weight: 900; font-variant-numeric: tabular-nums; }
+      .result-actions { display: grid; gap: 10px; }
+    </style>
+  </head>
+  <body>
+    <!-- 具材アイコン（手描きSVG） -->
+    <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+      <defs>
+        <symbol id="ic-ajitama" viewBox="0 0 48 48">
+          <ellipse cx="24" cy="24" rx="15" ry="19" fill="#fff7ea" stroke="#d9c9a8" stroke-width="2"/>
+          <ellipse cx="24" cy="26" rx="8.5" ry="10" fill="#f5a623"/>
+          <ellipse cx="24" cy="26" rx="4.5" ry="5.5" fill="#e8890c"/>
+        </symbol>
+        <symbol id="ic-pork" viewBox="0 0 48 48">
+          <circle cx="24" cy="24" r="17" fill="#e8a598" stroke="#c97a6b" stroke-width="2"/>
+          <path d="M24 14c6 0 10 4 10 10M24 34c-6 0-10-4-10-10" fill="none" stroke="#f6d9d2" stroke-width="4" stroke-linecap="round"/>
+          <circle cx="24" cy="24" r="4" fill="#f6d9d2"/>
+        </symbol>
+        <symbol id="ic-chicken" viewBox="0 0 48 48">
+          <rect x="9" y="15" width="30" height="18" rx="9" fill="#f7e3c2" stroke="#dcbd8a" stroke-width="2"/>
+          <path d="M14 24h20" stroke="#ecca96" stroke-width="3" stroke-linecap="round"/>
+        </symbol>
+        <symbol id="ic-wonton" viewBox="0 0 48 48">
+          <path d="M10 30c-2-8 3-15 9-14 2-4 8-5 11-1 6 0 10 6 8 13-1 4-5 6-9 5H18c-4 0-7-1-8-3z" fill="#fdf3d8" stroke="#e0c98d" stroke-width="2"/>
+          <path d="M17 33c2 4 5 6 7 8 2-2 5-4 7-8" fill="#f3e2ae" stroke="#e0c98d" stroke-width="2"/>
+        </symbol>
+        <symbol id="ic-menma" viewBox="0 0 48 48">
+          <g stroke="#c98f2d" stroke-width="5" stroke-linecap="round">
+            <path d="M14 12v24"/><path d="M24 9v27"/><path d="M34 12v24"/>
+          </g>
+          <g stroke="#a8741f" stroke-width="2" stroke-linecap="round">
+            <path d="M14 20h0M24 17h0M34 22h0"/>
+          </g>
+        </symbol>
+        <symbol id="ic-negi" viewBox="0 0 48 48">
+          <g fill="none" stroke="#3f9e4d" stroke-width="3.5">
+            <circle cx="17" cy="18" r="6"/><circle cx="31" cy="18" r="6"/>
+            <circle cx="24" cy="30" r="6"/><circle cx="14" cy="31" r="5"/><circle cx="34" cy="31" r="5"/>
+          </g>
+          <g fill="#bfe6c4"><circle cx="17" cy="18" r="2.4"/><circle cx="31" cy="18" r="2.4"/><circle cx="24" cy="30" r="2.4"/></g>
+        </symbol>
+        <symbol id="ic-nori" viewBox="0 0 48 48">
+          <rect x="11" y="9" width="26" height="30" rx="3" fill="#23282a"/>
+          <path d="M16 15l14 4M15 26l16-3M17 35l12-4" stroke="#39413f" stroke-width="2.5" stroke-linecap="round"/>
+        </symbol>
+        <symbol id="ic-yuzu" viewBox="0 0 48 48">
+          <path d="M10 28c8-12 22-15 28-12-1 8-8 16-18 17-5 1-9-1-10-5z" fill="#f6cf4b" stroke="#d9a91f" stroke-width="2"/>
+          <path d="M14 27c6-7 14-10 19-9" fill="none" stroke="#ffe08a" stroke-width="3" stroke-linecap="round"/>
+        </symbol>
+      </defs>
+    </svg>
+
+    <div class="wrap">
+
+      <!-- ===== スタート画面 ===== -->
+      <section id="screen-start" class="screen active">
+        <p class="shop-line">麺宿 志いな</p>
+        <div class="bowl-stage">
+          <div class="steam" aria-hidden="true"><span></span><span></span><span></span></div>
+          <svg class="bowl-svg" viewBox="0 0 240 150" role="img" aria-label="湯気の立つラーメンの丼">
+            <path d="M28 62h184c0 34-24 58-56 64l-4 10H88l-4-10C52 120 28 96 28 62z" fill="#b3372a"/>
+            <path d="M28 62h184c0 6-1 12-3 17H31c-2-5-3-11-3-17z" fill="#8f2a20"/>
+            <ellipse cx="120" cy="62" rx="92" ry="14" fill="#fdf6e0"/>
+            <ellipse cx="120" cy="62" rx="80" ry="11" fill="#f7d774"/>
+            <path d="M62 60c14-6 26 4 40 0s26 5 40 0 24 4 36-1" fill="none" stroke="#eec95c" stroke-width="5" stroke-linecap="round"/>
+            <circle cx="88" cy="58" r="11" fill="#e8a598" stroke="#c97a6b" stroke-width="2"/>
+            <ellipse cx="140" cy="57" rx="11" ry="13" fill="#fff7ea" stroke="#d9c9a8" stroke-width="2"/>
+            <ellipse cx="140" cy="58" rx="6" ry="7" fill="#f5a623"/>
+            <rect x="168" y="42" width="17" height="21" rx="2" fill="#23282a" transform="rotate(10 176 52)"/>
+          </svg>
+        </div>
+        <h1 class="game-title">茹で上がる前に<br /><span class="accent">あそぶゲーム</span></h1>
+        <p class="lead">制限時間は60秒。<br />注文票どおりに具材をタップして、<br />一杯を仕上げてください。</p>
+        <div class="howto">
+          <h2>あそびかた</h2>
+          <ol>
+            <li>注文票に出た具材だけをタップ（正解 <span class="pts">+100点</span>）</li>
+            <li>違う具材を押すと <span class="pts">−50点</span>、コンボも途切れます</li>
+            <li>5連続正解ごとにコンボボーナス <span class="pts">+50点</span></li>
+            <li>注文を仕上げるごとに、次の注文は具材が増えて難しくなります</li>
+          </ol>
+        </div>
+        <button class="btn btn-main" id="btn-start" type="button">麺を茹で始める</button>
+        <p class="start-note">操作はタップだけ。プレイ中はBGMと効果音が流れます（あとから消せます）。</p>
+        <p class="start-note">音が出ないときは、端末の消音モードをオフにして、音量を上げてみてください。</p>
+        <p class="start-note">※制限時間の60秒はゲーム用の設定です。実際のお店の茹で時間とは異なります。</p>
+      </section>
+
+      <!-- ===== プレイ画面 ===== -->
+      <section id="screen-play" class="screen">
+        <div class="hud">
+          <div class="hud-box"><div class="label">スコア</div><div class="value" id="hud-score">0</div></div>
+          <div class="hud-box"><div class="label">コンボ</div><div class="value" id="hud-combo">0</div></div>
+          <div class="hud-box"><div class="label">仕上げた注文</div><div class="value" id="hud-orders">0</div></div>
+        </div>
+        <div class="timer-wrap">
+          <div class="timer-bar-bg"><div class="timer-bar" id="timer-bar"></div></div>
+          <div class="timer-meta"><span class="phase" id="timer-phase">スタート！ まだまだ時間はある</span><span class="sec">制限時間 残り <span id="timer-sec">60.0</span>秒</span></div>
+        </div>
+
+        <div class="ticket" id="ticket">
+          <div class="ticket-head"><span class="t">注文票</span><span class="round" id="ticket-round">1杯目</span></div>
+          <div class="ticket-items" id="ticket-items"></div>
+        </div>
+
+        <div class="bowl-stage play-bowl">
+          <div class="steam" aria-hidden="true"><span></span><span></span><span></span></div>
+          <svg class="bowl-svg" viewBox="0 0 240 150" aria-hidden="true">
+            <path d="M28 62h184c0 34-24 58-56 64l-4 10H88l-4-10C52 120 28 96 28 62z" fill="#b3372a"/>
+            <path d="M28 62h184c0 6-1 12-3 17H31c-2-5-3-11-3-17z" fill="#8f2a20"/>
+            <ellipse cx="120" cy="62" rx="92" ry="14" fill="#fdf6e0"/>
+            <ellipse cx="120" cy="62" rx="80" ry="11" fill="#f7d774"/>
+          </svg>
+          <div class="bowl-toppings" id="bowl-toppings"></div>
+        </div>
+
+        <div class="feedback" id="feedback" aria-live="polite"></div>
+        <div class="grid" id="grid"></div>
+        <div class="sound-row"><button class="sound-btn" id="btn-sound" type="button">音：オン</button></div>
+      </section>
+
+      <!-- ===== 結果画面 ===== -->
+      <section id="screen-result" class="screen">
+        <p class="finish-title">制限時間 終了！</p>
+        <p class="finish-sub">ゲームの60秒が終わりました。おつかれさまでした。</p>
+        <div class="bowl-stage">
+          <div class="steam" aria-hidden="true"><span></span><span></span><span></span></div>
+          <svg class="bowl-svg" viewBox="0 0 240 150" aria-hidden="true">
+            <path d="M28 62h184c0 34-24 58-56 64l-4 10H88l-4-10C52 120 28 96 28 62z" fill="#b3372a"/>
+            <path d="M28 62h184c0 6-1 12-3 17H31c-2-5-3-11-3-17z" fill="#8f2a20"/>
+            <ellipse cx="120" cy="62" rx="92" ry="14" fill="#fdf6e0"/>
+            <ellipse cx="120" cy="62" rx="80" ry="11" fill="#f7d774"/>
+          </svg>
+          <div class="bowl-toppings" id="result-toppings"></div>
+        </div>
+        <div class="score-big"><span class="num" id="final-score">0</span> <span class="unit">点</span></div>
+        <span class="rank-badge" id="final-rank">見習い</span>
+        <div class="stats">
+          <div class="stat"><div class="label">仕上げた注文</div><div class="value"><span id="stat-orders">0</span>杯</div></div>
+          <div class="stat"><div class="label">のせた具材</div><div class="value"><span id="stat-correct">0</span>個</div></div>
+          <div class="stat"><div class="label">最大コンボ</div><div class="value"><span id="stat-combo">0</span>連続</div></div>
+          <div class="stat"><div class="label">まちがい</div><div class="value"><span id="stat-miss">0</span>回</div></div>
+        </div>
+        <div class="result-actions">
+          <button class="btn btn-main" id="btn-retry" type="button">もう一度あそぶ</button>
+          <button class="btn btn-ghost" id="btn-tostart" type="button">タイトルに戻る</button>
+        </div>
+      </section>
+
+    </div>
+
+    <script>
+      (function () {
+        "use strict";
+
+        /* ---------- ダブルタップズーム防止（iOS Safari対策） ---------- */
+        /* ボタン上では preventDefault しない：iOSでは touchend の preventDefault が
+           click 自体を潰し、連打タップで効果音も判定も出なくなるため。
+           ボタンのズーム自体は CSS の touch-action: manipulation で防げている。 */
+        var lastTouchEnd = 0;
+        document.addEventListener("touchend", function (e) {
+          if (e.target && e.target.closest && e.target.closest("button")) return;
+          var now = Date.now();
+          if (now - lastTouchEnd <= 350) e.preventDefault();
+          lastTouchEnd = now;
+        }, { passive: false });
+        document.addEventListener("gesturestart", function (e) { e.preventDefault(); });
+        /* プレイ中はスワイプで画面が上下に動かないよう固定 */
+        document.addEventListener("touchmove", function (e) {
+          if (document.body.classList.contains("locked")) e.preventDefault();
+        }, { passive: false });
+        document.addEventListener("dblclick", function (e) { e.preventDefault(); }, { passive: false });
+
+        var TOPPINGS = [
+          { id: "pork",    name: "豚チャーシュー" },
+          { id: "chicken", name: "鶏チャーシュー" },
+          { id: "wonton",  name: "鶏ワンタン" },
+          { id: "ajitama", name: "味玉" },
+          { id: "menma",   name: "メンマ" },
+          { id: "negi",    name: "九条ねぎ" },
+          { id: "nori",    name: "海苔" },
+          { id: "yuzu",    name: "柚子皮" }
+        ];
+        var GAME_SECONDS = 60;
+
+        var screens = {
+          start: document.getElementById("screen-start"),
+          play: document.getElementById("screen-play"),
+          result: document.getElementById("screen-result")
+        };
+        function show(name) {
+          Object.keys(screens).forEach(function (k) {
+            screens[k].classList.toggle("active", k === name);
+          });
+          // プレイ画面の間だけページ全体を固定する
+          document.body.classList.toggle("locked", name === "play");
+          window.scrollTo(0, 0);
+        }
+
+        /* ---------- 音（WebAudioの小さな効果音） ---------- */
+        var audioCtx = null, soundOn = true, audioUnlocked = false;
+        /* iOSでは AudioContext が suspended のまま固まることがあるため、
+           実際の指のタッチ（pointerdown）のたびに生成・再開を試みる */
+        function unlockAudio() {
+          try {
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            if (audioCtx.state === "suspended") {
+              var p = audioCtx.resume();
+              if (p && p.then) p.then(function () { audioUnlocked = true; });
+            } else if (audioCtx.state === "running") {
+              audioUnlocked = true;
+            }
+          } catch (e) { /* 音が出なくてもゲームは続行 */ }
+        }
+        document.addEventListener("pointerdown", unlockAudio, true);
+        document.addEventListener("touchstart", unlockAudio, { capture: true, passive: true });
+        function beep(freq, dur, type, gain) {
+          if (!soundOn) return;
+          unlockAudio();
+          if (!audioCtx) return;
+          try {
+            var t0 = audioCtx.currentTime;
+            var o = audioCtx.createOscillator(), g = audioCtx.createGain();
+            o.type = type || "sine"; o.frequency.value = freq;
+            g.gain.setValueAtTime(gain || 0.2, t0);
+            g.gain.exponentialRampToValueAtTime(0.001, t0 + dur);
+            o.connect(g); g.connect(audioCtx.destination);
+            o.start(t0); o.stop(t0 + dur + 0.02);
+          } catch (e) { /* 音が出なくてもゲームは続行 */ }
+        }
+        function sndGood(combo) { beep(520 + Math.min(combo, 10) * 30, 0.12, "triangle", 0.22); }
+        function sndBad() { beep(150, 0.2, "sawtooth", 0.14); }
+        function sndOrder() { beep(660, 0.1, "triangle", 0.2); setTimeout(function () { beep(880, 0.16, "triangle", 0.2); }, 90); }
+        function sndFinish() {
+          [523, 659, 784, 1046].forEach(function (f, i) {
+            setTimeout(function () { beep(f, 0.22, "triangle", 0.2); }, i * 110);
+          });
+        }
+
+        /* ---------- BGM（鶏そばの澄んだスープをイメージした和風ループ） ----------
+           音源ファイルは使わず、WebAudioで琴のような爪弾きと淡い和音を合成する。
+           以前の都節音階のゆったりした旋律は物悲しく聴こえたため、
+           明るい陽旋法（ニ・ホ・イ長調寄りの五音音階）のアップテンポな旋律に変更。
+           132BPMで、軽いキックとハットを入れて弾むリズムにする。
+           効果音より小さな音量でプレイ中だけループ再生する。 */
+        var BGM_STEP = 60 / 132 / 2; // 132BPM・8分音符ひとつ分
+        var BGM_MELODY = [
+          587.33, 0, 739.99, 587.33, 493.88, 587.33, 659.25, 0,
+          440.00, 0, 493.88, 440.00, 369.99, 440.00, 493.88, 0,
+          587.33, 0, 739.99, 880.00, 739.99, 587.33, 659.25, 493.88,
+          587.33, 440.00, 493.88, 587.33, 0, 659.25, 440.00, 0
+        ];
+        var BGM_BASS = [73.42, 61.74, 49.00, 55.00]; // 小節ごとの根音 D・B・G・A
+        var BGM_PAD = [
+          [146.83, 185.00, 220.00],
+          [123.47, 146.83, 185.00],
+          [98.00, 146.83, 196.00],
+          [110.00, 164.81, 220.00]
+        ];
+        var bgmGain = null, bgmTimer = null, bgmStep = 0, bgmNext = 0, bgmOn = false;
+
+        function bgmPluck(freq, t, vol, dur) {
+          var o1 = audioCtx.createOscillator(), o2 = audioCtx.createOscillator(),
+              g = audioCtx.createGain(), g2 = audioCtx.createGain();
+          o1.type = "triangle"; o1.frequency.value = freq;
+          o2.type = "sine"; o2.frequency.value = freq * 2;
+          g2.gain.value = 0.35;
+          g.gain.setValueAtTime(0, t);
+          g.gain.linearRampToValueAtTime(vol, t + 0.015);
+          g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+          o1.connect(g); o2.connect(g2); g2.connect(g); g.connect(bgmGain);
+          o1.start(t); o2.start(t);
+          o1.stop(t + dur + 0.05); o2.stop(t + dur + 0.05);
+        }
+        function bgmBass(freq, t) {
+          var o = audioCtx.createOscillator(), g = audioCtx.createGain();
+          o.type = "sine"; o.frequency.value = freq;
+          g.gain.setValueAtTime(0, t);
+          g.gain.linearRampToValueAtTime(0.10, t + 0.02);
+          g.gain.exponentialRampToValueAtTime(0.001, t + 0.4);
+          o.connect(g); g.connect(bgmGain);
+          o.start(t); o.stop(t + 0.45);
+        }
+        var bgmNoiseBuf = null;
+        function bgmHat(t, accent) {
+          if (!bgmNoiseBuf) {
+            bgmNoiseBuf = audioCtx.createBuffer(1, audioCtx.sampleRate * 0.1, audioCtx.sampleRate);
+            var d = bgmNoiseBuf.getChannelData(0);
+            for (var i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+          }
+          var src = audioCtx.createBufferSource(); src.buffer = bgmNoiseBuf;
+          var f = audioCtx.createBiquadFilter(); f.type = "highpass"; f.frequency.value = 7000;
+          var g = audioCtx.createGain();
+          g.gain.setValueAtTime(accent ? 0.055 : 0.03, t);
+          g.gain.exponentialRampToValueAtTime(0.001, t + 0.05);
+          src.connect(f); f.connect(g); g.connect(bgmGain);
+          src.start(t); src.stop(t + 0.06);
+        }
+        function bgmKick(t) {
+          var o = audioCtx.createOscillator(), g = audioCtx.createGain();
+          o.type = "sine";
+          o.frequency.setValueAtTime(150, t);
+          o.frequency.exponentialRampToValueAtTime(50, t + 0.1);
+          g.gain.setValueAtTime(0.16, t);
+          g.gain.exponentialRampToValueAtTime(0.001, t + 0.16);
+          o.connect(g); g.connect(bgmGain);
+          o.start(t); o.stop(t + 0.2);
+        }
+        function bgmPad(freqs, t, dur) {
+          freqs.forEach(function (f) {
+            var o = audioCtx.createOscillator(), g = audioCtx.createGain();
+            o.type = "sine"; o.frequency.value = f;
+            g.gain.setValueAtTime(0, t);
+            g.gain.linearRampToValueAtTime(0.028, t + dur * 0.3);
+            g.gain.linearRampToValueAtTime(0, t + dur);
+            o.connect(g); g.connect(bgmGain);
+            o.start(t); o.stop(t + dur + 0.05);
+          });
+        }
+        function bgmSchedule() {
+          if (!bgmOn || !audioCtx) return;
+          while (bgmNext < audioCtx.currentTime + 0.3) {
+            var step = bgmStep % BGM_MELODY.length;
+            var bar = Math.floor(step / 8);
+            if (step % 8 === 0) bgmPad(BGM_PAD[bar], bgmNext, BGM_STEP * 8);
+            if (step % 8 === 0 || step % 8 === 4) bgmKick(bgmNext);
+            bgmHat(bgmNext, step % 2 === 0);
+            if (step % 2 === 0) bgmBass(BGM_BASS[bar] * (step % 4 === 2 ? 1.5 : 1), bgmNext);
+            var m = BGM_MELODY[step];
+            if (m) bgmPluck(m, bgmNext, 0.12, 0.5);
+            bgmStep++;
+            bgmNext += BGM_STEP;
+          }
+        }
+        function startBgm() {
+          unlockAudio();
+          if (!audioCtx) return;
+          if (!bgmGain) {
+            bgmGain = audioCtx.createGain();
+            bgmGain.gain.value = 0;
+            bgmGain.connect(audioCtx.destination);
+          }
+          if (bgmTimer) { clearInterval(bgmTimer); bgmTimer = null; }
+          bgmOn = true;
+          bgmStep = 0;
+          bgmNext = audioCtx.currentTime + 0.06;
+          bgmGain.gain.cancelScheduledValues(audioCtx.currentTime);
+          bgmGain.gain.setTargetAtTime(soundOn ? 0.9 : 0, audioCtx.currentTime, 0.4);
+          bgmSchedule();
+          bgmTimer = setInterval(bgmSchedule, 100);
+        }
+        function stopBgm() {
+          bgmOn = false;
+          if (bgmTimer) { clearInterval(bgmTimer); bgmTimer = null; }
+          if (bgmGain && audioCtx) {
+            bgmGain.gain.cancelScheduledValues(audioCtx.currentTime);
+            bgmGain.gain.setTargetAtTime(0, audioCtx.currentTime, 0.15);
+          }
+        }
+
+        /* ---------- 状態 ---------- */
+        var state = null;
+        var timerId = null;
+
+        function shuffle(arr) {
+          var a = arr.slice();
+          for (var i = a.length - 1; i > 0; i--) {
+            var j = Math.floor(Math.random() * (i + 1));
+            var t = a[i]; a[i] = a[j]; a[j] = t;
+          }
+          return a;
+        }
+
+        function newOrder(round) {
+          // ラウンドが進むほど具材の総数が増える（3個 → 最大8個）
+          var total = Math.min(3 + (round - 1), 8);
+          var need = {};
+          for (var i = 0; i < total; i++) {
+            var t = TOPPINGS[Math.floor(Math.random() * TOPPINGS.length)];
+            need[t.id] = (need[t.id] || 0) + 1;
+          }
+          return need;
+        }
+
+        function iconSvg(id, cls) {
+          return '<svg class="' + (cls || "") + '" aria-hidden="true"><use href="#ic-' + id + '"></use></svg>';
+        }
+
+        /* ---------- 描画 ---------- */
+        var elScore = document.getElementById("hud-score"),
+            elCombo = document.getElementById("hud-combo"),
+            elOrders = document.getElementById("hud-orders"),
+            elBar = document.getElementById("timer-bar"),
+            elSec = document.getElementById("timer-sec"),
+            elPhase = document.getElementById("timer-phase"),
+            elRound = document.getElementById("ticket-round"),
+            elItems = document.getElementById("ticket-items"),
+            elGrid = document.getElementById("grid"),
+            elFeedback = document.getElementById("feedback"),
+            elBowl = document.getElementById("bowl-toppings");
+
+        function renderHud() {
+          elScore.textContent = state.score;
+          elCombo.textContent = state.combo;
+          elCombo.classList.toggle("combo-hot", state.combo >= 5);
+          elOrders.textContent = state.orders;
+        }
+
+        function renderTicket() {
+          elRound.textContent = state.round + "杯目";
+          var html = "";
+          var anyLeft = false;
+          Object.keys(state.need).forEach(function (id) {
+            var t = TOPPINGS.find(function (x) { return x.id === id; });
+            var left = state.need[id];
+            if (left > 0) anyLeft = true;
+            html += '<span class="ticket-item' + (left === 0 ? " done" : "") + '">' +
+              iconSvg(id) + t.name +
+              '<span class="need">' + (left === 0 ? "✓" : "×" + left) + "</span></span>";
+          });
+          elItems.innerHTML = anyLeft ? html : '<span class="ticket-empty">注文完成！ 次の一杯へ…</span>';
+        }
+
+        function renderGrid() {
+          var order = shuffle(TOPPINGS);
+          elGrid.innerHTML = "";
+          order.forEach(function (t) {
+            var b = document.createElement("button");
+            b.type = "button";
+            b.className = "tile";
+            b.setAttribute("data-id", t.id);
+            b.setAttribute("aria-label", t.name);
+            b.innerHTML = iconSvg(t.id) + '<span class="name">' + t.name + "</span>";
+            /* タップは pointerdown（指が触れた瞬間）で受ける：click は iOS で
+               潰れたり遅れたりして効果音・判定が不安定になるため。
+               click はキーボード操作用に残し、直前の pointerdown と重複させない */
+            var lastPtr = 0;
+            b.addEventListener("pointerdown", function (e) {
+              e.preventDefault();
+              lastPtr = Date.now();
+              onTap(t.id, b);
+            });
+            b.addEventListener("click", function () {
+              if (Date.now() - lastPtr < 600) return;
+              onTap(t.id, b);
+            });
+            elGrid.appendChild(b);
+          });
+        }
+
+        var bowlSpots = [
+          [8, 18], [38, 4], [66, 16], [24, 42], [54, 44], [80, 42],
+          [12, 58], [44, 62], [72, 62], [30, 24], [60, 26], [86, 24]
+        ];
+        function addToBowl(id) {
+          var spot = bowlSpots[state.bowlCount % bowlSpots.length];
+          var d = document.createElement("div");
+          d.className = "mini";
+          d.style.left = spot[0] + "%";
+          d.style.top = spot[1] + "%";
+          d.innerHTML = iconSvg(id);
+          elBowl.appendChild(d);
+          state.bowlCount++;
+          state.bowlItems.push(id);
+        }
+
+        function setFeedback(text, cls) {
+          elFeedback.textContent = text;
+          elFeedback.className = "feedback" + (cls ? " " + cls : "");
+        }
+
+        /* ---------- ゲーム進行 ---------- */
+        function onTap(id, btn) {
+          if (!state || !state.playing) return;
+          if (state.need[id] && state.need[id] > 0) {
+            state.need[id]--;
+            state.combo++;
+            state.correct++;
+            if (state.combo > state.maxCombo) state.maxCombo = state.combo;
+            var pts = 100;
+            var bonus = state.combo % 5 === 0;
+            if (bonus) pts += 50;
+            state.score += pts;
+            sndGood(state.combo);
+            btn.classList.add("good-tap");
+            setTimeout(function () { btn.classList.remove("good-tap"); }, 180);
+            setFeedback(bonus ? state.combo + "連続！ ボーナス+50" : "+" + pts, bonus ? "combo" : "good");
+            addToBowl(id);
+            renderTicket();
+            // 注文が全部そろったら次の注文へ
+            var left = Object.keys(state.need).reduce(function (s, k) { return s + state.need[k]; }, 0);
+            if (left === 0) {
+              state.orders++;
+              state.score += 200;
+              sndOrder();
+              setFeedback("注文完成！ +200", "combo");
+              state.round++;
+              state.need = newOrder(state.round);
+              setTimeout(renderTicket, 350);
+              renderGrid();
+            }
+          } else {
+            state.score = Math.max(0, state.score - 50);
+            state.combo = 0;
+            state.miss++;
+            sndBad();
+            btn.classList.add("bad-tap");
+            setTimeout(function () { btn.classList.remove("bad-tap"); }, 320);
+            setFeedback("それは注文にない具材… −50", "bad");
+          }
+          renderHud();
+        }
+
+        function phaseText(remain) {
+          if (remain > 40) return "スタート！ まだまだ時間はある";
+          if (remain > 20) return "折り返し地点。集中していこう";
+          if (remain > 8) return "残りわずか。集中！";
+          return "ラストスパート！！";
+        }
+
+        function tick() {
+          var remain = Math.max(0, (state.endAt - Date.now()) / 1000);
+          elSec.textContent = remain.toFixed(1);
+          elBar.style.width = (remain / GAME_SECONDS * 100) + "%";
+          elBar.classList.toggle("hot", remain <= 10);
+          elPhase.textContent = phaseText(remain);
+          if (remain <= 0) finish();
+        }
+
+        function startGame() {
+          state = {
+            playing: true, score: 0, combo: 0, maxCombo: 0,
+            correct: 0, miss: 0, orders: 0, round: 1,
+            need: newOrder(1), bowlCount: 0, bowlItems: [],
+            endAt: Date.now() + GAME_SECONDS * 1000
+          };
+          elBowl.innerHTML = "";
+          setFeedback("注文票の具材をタップ！", "");
+          renderHud(); renderTicket(); renderGrid();
+          elSec.textContent = GAME_SECONDS.toFixed(1);
+          elBar.style.width = "100%";
+          elBar.classList.remove("hot");
+          show("play");
+          startBgm();
+          if (timerId) clearInterval(timerId);
+          timerId = setInterval(tick, 100);
+        }
+
+        function rankFor(score, orders) {
+          if (score >= 4000 && orders >= 6) return "麺宿の匠";
+          if (score >= 3000) return "茹で加減マイスター";
+          if (score >= 2000) return "一人前の盛り付け手";
+          if (score >= 1000) return "見習い卒業間近";
+          return "見習い";
+        }
+
+        function finish() {
+          if (timerId) { clearInterval(timerId); timerId = null; }
+          if (!state) return;
+          state.playing = false;
+          stopBgm();
+          sndFinish();
+          document.getElementById("final-score").textContent = state.score;
+          document.getElementById("final-rank").textContent = rankFor(state.score, state.orders);
+          document.getElementById("stat-orders").textContent = state.orders;
+          document.getElementById("stat-correct").textContent = state.correct;
+          document.getElementById("stat-combo").textContent = state.maxCombo;
+          document.getElementById("stat-miss").textContent = state.miss;
+          var rt = document.getElementById("result-toppings");
+          rt.innerHTML = "";
+          state.bowlItems.slice(-12).forEach(function (id, i) {
+            var spot = bowlSpots[i % bowlSpots.length];
+            var d = document.createElement("div");
+            d.className = "mini";
+            d.style.left = spot[0] + "%";
+            d.style.top = spot[1] + "%";
+            d.innerHTML = iconSvg(id);
+            rt.appendChild(d);
+          });
+          show("result");
+        }
+
+        document.getElementById("btn-start").addEventListener("click", function () { sndGood(1); startGame(); });
+        document.getElementById("btn-retry").addEventListener("click", startGame);
+        document.getElementById("btn-tostart").addEventListener("click", function () { show("start"); });
+        document.getElementById("btn-sound").addEventListener("click", function () {
+          soundOn = !soundOn;
+          this.textContent = soundOn ? "音：オン" : "音：オフ";
+          // BGMも効果音と一緒にオン・オフする（プレイ中だけ音量が戻る）
+          if (bgmGain && audioCtx) {
+            bgmGain.gain.setTargetAtTime(soundOn && bgmOn ? 0.9 : 0, audioCtx.currentTime, 0.1);
+          }
+          if (soundOn) sndGood(1);
+        });
+      })();
+    </script>
+  </body>
+</html>
